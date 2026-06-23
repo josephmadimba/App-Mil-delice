@@ -9,9 +9,110 @@ datasource db {
   url      = env("DATABASE_URL")
 }
 
+// Utilisateurs de l'application (gérant, serveur, cuisinier, etc.)
 model User {
   id        Int      @id @default(autoincrement())
+  name      String
   email     String   @unique
-  name      String?
+  password  String   // 👈 On ajoute cette ligne manquante
+  role      UserRole  // Ajout d'une valeur par défaut pour éviter d'autres erreurs !
   createdAt DateTime @default(now())
+
+  orders    Order[]  @relation("OrdersCreatedBy")
+}
+
+// Fournisseurs
+model Supplier {
+  id           Int          @id @default(autoincrement())
+  companyName  String
+  contactEmail String?
+
+  ingredients  Ingredient[]
+}
+
+// Ingrédients en stock
+model Ingredient {
+  id            Int        @id @default(autoincrement())
+  name          String
+  currentStock  Float      @default(0)   // quantité actuelle
+  minThreshold  Float      @default(0)   // seuil d'alerte
+  unit          Unit       // kg, l, u
+  unitPrice     Float      @default(0)   // prix d'achat unitaire
+
+  supplierId    Int?
+  supplier      Supplier?  @relation(fields: [supplierId], references: [id])
+
+  recipes       RecipeIngredient[]
+}
+
+// Plats / articles vendus
+model MenuItem {
+  id            Int                @id @default(autoincrement())
+  name          String
+  sellingPrice  Float
+  category      String
+
+  orderItems    OrderItem[]
+  recipeItems   RecipeIngredient[]
+}
+
+// Commandes (une par table ou par ticket)
+model Order {
+  id           Int          @id @default(autoincrement())
+  tableNumber  String?
+  status       OrderStatus  @default(PENDING)
+  totalAmount  Float        @default(0)
+  createdAt    DateTime     @default(now())
+
+  createdById  Int?
+  createdBy    User?        @relation("OrdersCreatedBy", fields: [createdById], references: [id])
+
+  items        OrderItem[]
+}
+
+// Lignes de commande (un plat dans une commande)
+model OrderItem {
+  id          Int      @id @default(autoincrement())
+  orderId     Int
+  menuItemId  Int
+  quantity    Int      @default(1)
+
+  order       Order    @relation(fields: [orderId], references: [id])
+  menuItem    MenuItem @relation(fields: [menuItemId], references: [id])
+}
+
+// Table d'association Recette <-> Ingrédients
+model RecipeIngredient {
+  id             Int         @id @default(autoincrement())
+  menuItemId     Int
+  ingredientId   Int
+  quantityNeeded Float       // quantité d'ingrédient par portion de plat
+
+  menuItem       MenuItem    @relation(fields: [menuItemId], references: [id])
+  ingredient     Ingredient  @relation(fields: [ingredientId], references: [id])
+}
+
+// Rôles possibles des utilisateurs
+enum UserRole {
+  MANAGER
+  SERVER
+  COOK
+  BARMAN
+  CASHIER
+}
+
+// Unités de mesure pour les ingrédients
+enum Unit {
+  KG
+  LITER
+  UNIT
+}
+
+// Statut des commandes
+enum OrderStatus {
+  PENDING     // en attente / créée
+  IN_PROGRESS // en préparation
+  READY       // prête
+  SERVED      // servie au client
+  CANCELLED   // annulée
 }
